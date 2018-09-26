@@ -10,6 +10,11 @@ if [[ $EUID != 0 ]] ; then
     exit -1
 fi
 
+until [[ $(/usr/bin/pmset -g ps) == *"AC Power"* ]]; do
+    echo "Please connect a Power Adapter to continue.."
+    sleep 5
+done
+
 INDEX=0
 OLDIFS=$IFS
 IFS=$'\n'
@@ -19,22 +24,43 @@ IFS=$'\n'
 BASENAME=${0##*/}
 THISDIR=${0%$BASENAME}
 PACKAGESDIR="${THISDIR}packages"
-INSTALLMACOSAPP=$(echo "${THISDIR}Install macOS"*.app)
-STARTOSINSTALL=$(echo "${THISDIR}Install macOS"*.app/Contents/Resources/startosinstall)
+INSTALLERDIR="${THISDIR}installers"
 
-if [ ! -e "$STARTOSINSTALL" ]; then
-    echo "Can't find an Install macOS app containing startosinstall in this script's directory!"
-    exit -1
-fi
 
 echo "****** Welcome to installr! ******"
-echo "macOS will be installed from:"
-echo "    ${INSTALLMACOSAPP}"
-echo "these additional packages will also be installed:"
-for PKG in $(/bin/ls -1 "${PACKAGESDIR}"/*.pkg); do
-    echo "    ${PKG}"
+echo 
+echo "Available Installers:"
+for ITEM in "${INSTALLERDIR}"/* ; do
+    let INDEX=${INDEX}+1
+    INSTALLERS[${INDEX}]=${ITEM}
+    echo "    ${INDEX}.  ${ITEM##*/}"
 done
-echo
+read -p "Select which Installer you would like to use # (1-${INDEX}): " SELECTEDINDEX
+
+SELECTEDINSTALLER=${INSTALLERS[${SELECTEDINDEX}]}
+
+if [[ "${SELECTEDINSTALLER}" == "" ]]; then
+    exit 0
+fi
+
+INDEX=0
+echo 
+echo "Available package directories:"
+for ITEM in "${PACKAGESDIR}"/* ; do
+    let INDEX=${INDEX}+1
+    PACKAGES[${INDEX}]=${ITEM}
+    echo "    ${INDEX}  ${ITEM##*/}"
+done
+echo 
+read -p "Select which package directory you would like to use # (1-${INDEX}): " SELECTEDINDEX
+
+SELECTEDPACKAGESDIR=${PACKAGES[${SELECTEDINDEX}]}
+
+if [[ "${SELECTEDPACKAGESDIR}" == "" ]]; then
+    exit 0
+fi
+
+INDEX=0
 echo "Available volumes:"
 for VOL in $(/bin/ls -1 /Volumes) ; do
     if [[ "${VOL}" != "OS X Base System" ]] ; then
@@ -62,9 +88,11 @@ echo
 echo "Installing macOS to /Volumes/${SELECTEDVOLUME}..."
 
 # build our startosinstall command
+STARTOSINSTALL=$(echo ${SELECTEDINSTALLER}/Contents/Resources/startosinstall)
+
 CMD="\"${STARTOSINSTALL}\" --agreetolicense --volume \"/Volumes/${SELECTEDVOLUME}\"" 
 
-for ITEM in "${PACKAGESDIR}"/* ; do
+for ITEM in "${SELECTEDPACKAGESDIR}"/* ; do
     FILENAME="${ITEM##*/}"
     EXTENSION="${FILENAME##*.}"
     if [[ -e ${ITEM} ]]; then
